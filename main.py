@@ -3,7 +3,7 @@ import google.generativeai as genai
 from PIL import Image
 
 # 1. API Setup (Bhai yahan apni VALID key dalo)
-API_KEY = "AIzaSyBDmv0U5MSFc-7x4X0Xq4kzv36IjfGEq8o" 
+API_KEY = "GEMINI_API_KEY" 
 genai.configure(api_key=API_KEY)
 
 # --- SYSTEM PROMPT (PinkiAI ki Personality) ---
