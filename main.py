@@ -6,7 +6,7 @@ import streamlit.components.v1 as components
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # Model selection
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- PinkiAI System Instruction ---
 instruction = """
