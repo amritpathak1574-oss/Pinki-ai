@@ -1,69 +1,70 @@
 import streamlit as st
 import google.generativeai as genai
-import os
+import streamlit.components.v1 as components
 
 # --- API Configuration ---
-# Make sure your GOOGLE_API_KEY is in Streamlit Secrets
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# Models Definition
-# Chatting ke liye super-fast 2.5 Flash
-chat_model = genai.GenerativeModel('gemini-2.5-flash')
-# Image prompt banane ke liye powerful 1.5 Pro
-image_helper_model = genai.GenerativeModel('gemini-2.5-flash')
+# Model selection
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- PinkiAI System Instruction ---
 instruction = """
 Tumhara naam 'PinkiAI' hai. Tum ek intelligent school teacher assistant ho.
 Rules:
-1. Hamesha namaste bolkar ya polite tareeke se baat karo aur '🌸' use karo.
-2. agar koi tumse puche who are you or tum kaun ho always say im pinkiai here to help you never said i was made by google and other ai companies
-3. Default bhasha Hinglish rakho, par agar koi kisi aur language mein bole toh usi mein jawab do.
-4. Agar user '/image' likhe, toh tum ek bahut detailed English prompt likhna.
-   - Diagram mein labels aur clear text hona chahiye.
-   - Example: 'A clear educational diagram of the human respiratory system with labels like Lungs, Trachea, and Diaphragm, white background, high detail.'
+1. Hamesha polite raho aur '🌸' use karo.
+2. Agar user '/diagram' likhe, toh tum ek Mermaid.js flowchart code likhna.
+   - Code ko hamesha ```mermaid se shuru aur ``` se khatam karna.
+   - Diagram ekdum saaf aur labels ke sath hona chahiye.
+3. Agar user '/image' likhe, toh pehle ki tarah artistic description dena.
 """
 
-# --- Streamlit UI Setup ---
-st.set_page_config(page_title="PinkiAI - Smart Assistant", layout="centered")
+# --- Mermaid Renderer Function ---
+def render_mermaid(code):
+    html_code = f"""
+    <div class="mermaid">
+        {code}
+    </div>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({{ startOnLoad: true }});
+    </script>
+    """
+    components.html(html_code, height=400, scrolling=True)
+
+# --- Streamlit UI ---
+st.set_page_config(page_title="PinkiAI - Smart Assistant")
 st.title("👩‍🏫 PinkiAI: Smart Teacher Assistant")
-st.info("💡 Tip: Normal chat karein, aur diagram ke liye message mein **/image** likhein.")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Purani baatein yaad rakhne ke liye
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if "```mermaid" in message["content"]:
+            code = message["content"].split("```mermaid")[1].split("```")[0]
+            render_mermaid(code)
 
-# --- Chat Input ---
 if prompt := st.chat_input("Puchiye Mam..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        if "/image" in prompt.lower():
-            # --- IMAGE MODE (Switching to 1.5 Pro) ---
-            with st.spinner("PinkiAI diagram taiyar kar rahi hai..."):
-                # 1.5 Pro model se detailed visual description banwana
-                img_response = image_helper_model.generate_content(f"{instruction}\n\nUser wants a diagram for: {prompt}. Write ONLY the visual prompt in English.")
-                detailed_prompt = img_response.text.strip()
-                
-                # Image Generation URL (Pollinations handles text in images well)
-                clean_prompt = detailed_prompt.replace(" ", "%20").replace("\n", "")
-                image_url = f"https://image.pollinations.ai/prompt/{clean_prompt}?width=1024&height=1024&nologo=true"
-                
-                st.markdown(f"Zaroor Mam! Aapke liye diagram taiyar hai: \n\n")
-                st.image(image_url, caption=f"Diagram: {prompt} 🌸", use_column_width=True)
-                
-                st.session_state.messages.append({"role": "assistant", "content": f"Image Generated: {detailed_prompt}"})
+        response = model.generate_content(f"{instruction}\n\nUser: {prompt}")
+        full_text = response.text
+        st.markdown(full_text)
         
-        else:
-            # --- CHAT MODE (Using 2.5 Flash) ---
-            # History pass kar rahe hain taaki AI purani baatein na bhoole
-            response = chat_model.generate_content(f"{instruction}\n\nUser: {prompt}")
-            
-            st.markdown(response.text)
-            st.session_state.messages.append({"role": "assistant", "content": response.text})
+        # Check if diagram needs to be rendered
+        if "```mermaid" in full_text:
+            mermaid_code = full_text.split("```mermaid")[1].split("```")[0]
+            render_mermaid(mermaid_code)
+        
+        # Keep image logic same for /image
+        elif "/image" in prompt.lower():
+            clean_prompt = full_text.replace(" ", "%20").replace("\n", "")
+            image_url = f"https://image.pollinations.ai/prompt/{clean_prompt}"
+            st.image(image_url, caption="Artistic View 🌸")
+
+        st.session_state.messages.append({"role": "assistant", "content": full_text})
