@@ -10,7 +10,7 @@ genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 # Chatting ke liye super-fast 2.5 Flash
 chat_model = genai.GenerativeModel('gemini-2.5-flash')
 # Image prompt banane ke liye powerful 1.5 Pro
-image_helper_model = genai.GenerativeModel('gemini-1.5-pro')
+image_helper_model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- PinkiAI System Instruction ---
 instruction = """
