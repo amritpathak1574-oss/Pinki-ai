@@ -9,7 +9,7 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 # Chatting ke liye super-fast 2.5 Flash (Ya 1.5-flash agar 2.5 available nahi)
 chat_model = genai.GenerativeModel('gemini-2.5-flash') # Keep this for chat
 # Image prompt banane ke liye powerful 1.5 Pro (Ya 1.5-flash agar 1.5-pro unavailable)
-image_prompt_generator_model = genai.GenerativeModel('gemini-1.5-pro') # Use a stronger model for complex image prompts
+image_prompt_generator_model = genai.GenerativeModel('gemini-1.5-flash') # Use a stronger model for complex image prompts
 
 # --- PinkiAI System Instruction ---
 instruction = """
