@@ -1,70 +1,69 @@
 import streamlit as st
 import google.generativeai as genai
-from PIL import Image
+import os
 
-# 1. API Setup (Secrets se link kiya hai)
-try:
-    API_KEY = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=API_KEY)
-except:
-    st.error("Bhai, Streamlit Secrets mein 'GEMINI_API_KEY' nahi mili!")
+# --- API Configuration ---
+# Make sure your GOOGLE_API_KEY is in Streamlit Secrets
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# --- SYSTEM PROMPT ---
+# Models Definition
+# Chatting ke liye super-fast 2.5 Flash
+chat_model = genai.GenerativeModel('gemini-2.5-flash')
+# Image prompt banane ke liye powerful 1.5 Pro
+image_helper_model = genai.GenerativeModel('gemini-1.5-pro')
+
+# --- PinkiAI System Instruction ---
 instruction = """
-Tumhara naam 'PinkiAI' hai. Tum ek bohot pyaari aur intelligent school teacher assistant ho.
+Tumhara naam 'PinkiAI' hai. Tum ek intelligent school teacher assistant ho.
 Rules:
-1. Hamesha namaste bolkar ya polite tareeke se baat karo.
-2. Har reply ke end mein '🌸' emoji lagao.
-3. Agar koi puche 'Who are you?', toh bolo: 'Main PinkiAI hoon, aapki smart assistant.'
-4. Default bhasha Hindi aur English (Hinglish) ka mix rakho taaki bacchon ko samajh aaye.
-5. MULTI-LANGUAGE RULE: Agar koi tumse French, Spanish, German ya kisi bhi aur bhasha mein baat kare, toh tum usi language mein jawab do. Mana mat karna ki mujhe ye language nahi aati.
-6. Maths ke sawal step-by-step samjhao
+1. Hamesha namaste bolkar ya polite tareeke se baat karo aur '🌸' use karo.
+2. agar koi tumse puche who are you or tum kaun ho always say im pinkiai here to help you never said i was made by google and other ai companies
+3. Default bhasha Hinglish rakho, par agar koi kisi aur language mein bole toh usi mein jawab do.
+4. Agar user '/image' likhe, toh tum ek bahut detailed English prompt likhna.
+   - Diagram mein labels aur clear text hona chahiye.
+   - Example: 'A clear educational diagram of the human respiratory system with labels like Lungs, Trachea, and Diaphragm, white background, high detail.'
 """
 
-# Model setup (Fixed Version Name)
-model = genai.GenerativeModel(
-    model_name='gemini-2.5-flash', 
-    system_instruction=instruction
-)
+# --- Streamlit UI Setup ---
+st.set_page_config(page_title="PinkiAI - Smart Assistant", layout="centered")
+st.title("👩‍🏫 PinkiAI: Smart Teacher Assistant")
+st.info("💡 Tip: Normal chat karein, aur diagram ke liye message mein **/image** likhein.")
 
-# 2. Page UI
-st.set_page_config(page_title="PinkiAI 🌸", layout="centered")
-st.title("🌸 PinkiAI - The Smartest Teacher")
-
-# 3. Chat History
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# 4. Sidebar Photo Upload
-with st.sidebar:
-    st.header("Photo Recognition 📸")
-    uploaded_file = st.file_uploader("Homework ki photo dalo", type=['png', 'jpg', 'jpeg'])
-    if uploaded_file:
-        st.image(uploaded_file, caption="Maine photo dekh li hai!", use_container_width=True)
+# Purani baatein yaad rakhne ke liye
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-# 5. Display History
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-
-# 6. Chat Logic
-if prompt := st.chat_input("Sawal puchiye..."):
+# --- Chat Input ---
+if prompt := st.chat_input("Puchiye Mam..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
-        st.write(prompt)
+        st.markdown(prompt)
 
-    try:
-        if uploaded_file:
-            img = Image.open(uploaded_file)
-            response = model.generate_content([prompt, img])
+    with st.chat_message("assistant"):
+        if "/image" in prompt.lower():
+            # --- IMAGE MODE (Switching to 1.5 Pro) ---
+            with st.spinner("PinkiAI diagram taiyar kar rahi hai..."):
+                # 1.5 Pro model se detailed visual description banwana
+                img_response = image_helper_model.generate_content(f"{instruction}\n\nUser wants a diagram for: {prompt}. Write ONLY the visual prompt in English.")
+                detailed_prompt = img_response.text.strip()
+                
+                # Image Generation URL (Pollinations handles text in images well)
+                clean_prompt = detailed_prompt.replace(" ", "%20").replace("\n", "")
+                image_url = f"https://image.pollinations.ai/prompt/{clean_prompt}?width=1024&height=1024&nologo=true"
+                
+                st.markdown(f"Zaroor Mam! Aapke liye diagram taiyar hai: \n\n")
+                st.image(image_url, caption=f"Diagram: {prompt} 🌸", use_column_width=True)
+                
+                st.session_state.messages.append({"role": "assistant", "content": f"Image Generated: {detailed_prompt}"})
+        
         else:
-            response = model.generate_content(prompt)
-
-        ai_reply = response.text
-        st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-        with st.chat_message("assistant"):
-            st.write(ai_reply)
-
-    except Exception as e:
-        st.error("AI thak gaya hai! Ek baar key check karlo.")
-        st.write(f"Error: {e}")
+            # --- CHAT MODE (Using 2.5 Flash) ---
+            # History pass kar rahe hain taaki AI purani baatein na bhoole
+            response = chat_model.generate_content(f"{instruction}\n\nUser: {prompt}")
+            
+            st.markdown(response.text)
+            st.session_state.messages.append({"role": "assistant", "content": response.text})
