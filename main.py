@@ -4,48 +4,44 @@ import streamlit.components.v1 as components
 
 # --- API Configuration ---
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-# Model selection
 model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- PinkiAI System Instruction ---
 instruction = """
-Tumhara naam 'PinkiAI' hai. Tum ek intelligent school teacher assistant ho.
+Tumhara naam 'PinkiAI' hai. Tum ek school teacher assistant ho.
 Rules:
 1. Hamesha polite raho aur '🌸' use karo.
-2. Default bhasha Hinglish rakho.
-
-3. AGAR USER '/diagram' likhe:
-   - Tum ek **Mermaid.js flowchart code** likhna.
-   - Hamesha 'flowchart TD' use karo.
-   - Nodes (boxes) mein special characters ya spaces avoid karo, unhe brackets mein likho: A[Hawa ki Garmi].
-   - SIRF MERMAID CODE DENA (```mermaid...``` ke andar), koi extra text mat likhna.
-
-4. AGAR USER '/image' likhe:
-   - Tum ek **DETAILED ENGLISH PROMPT** likhna jo ek **visual illustration** generate karega (NO FLOWCHARTS, NO MERMAID).
-   - Prompt mein "illustration style", "background", "colors", aur "context" ka mention karna.
-   - Example: 'A vibrant watercolor illustration of a tropical rainforest ecosystem. Bright green and blue colors, daylight, realistic yet artistic.'
-   - JAB TUM YE PROMPT LIKH DO, TOH USKE BAAD SIRF WOH PROMPT LIKHNA, AUR KUCH NAHI.
-
-5. Baaki sab cases mein, normal chat response do.
+2. Short aur sweet answers do taaki voice mode mein sunne mein acha lage.
+3. Agar user '/diagram' likhe, toh Mermaid.js code dena.
 """
 
-# --- Mermaid Renderer Function ---
+# --- Mermaid Renderer ---
 def render_mermaid(code):
     html_code = f"""
-    <div class="mermaid">
-        {code}
-    </div>
+    <div class="mermaid">{code}</div>
     <script type="module">
         import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
         mermaid.initialize({{ startOnLoad: true }});
     </script>
     """
-    components.html(html_code, height=400, scrolling=True)
+    components.html(html_code, height=400)
 
-# --- Streamlit UI ---
-st.set_page_config(page_title="PinkiAI - Smart Assistant")
-st.title("👩‍🏫 PinkiAI: Smart Teacher Assistant")
+# --- Voice Logic (Javascript) ---
+def speak_text(text):
+    # Text se emojis aur code hatane ke liye taaki awaz saaf aaye
+    clean_text = text.replace("🌸", "").split("```")[0].strip()
+    js_code = f"""
+    <script>
+        var msg = new SpeechSynthesisUtterance();
+        msg.text = "{clean_text}";
+        msg.lang = 'hi-IN'; 
+        window.speechSynthesis.speak(msg);
+    </script>
+    """
+    components.html(js_code, height=0)
+
+# --- UI ---
+st.title("👩‍🏫 PinkiAI: Voice Enabled Assistant")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -53,9 +49,6 @@ if "messages" not in st.session_state:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        if "```mermaid" in message["content"]:
-            code = message["content"].split("```mermaid")[1].split("```")[0]
-            render_mermaid(code)
 
 if prompt := st.chat_input("Puchiye Mam..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -67,15 +60,11 @@ if prompt := st.chat_input("Puchiye Mam..."):
         full_text = response.text
         st.markdown(full_text)
         
-        # Check if diagram needs to be rendered
+        # Voice Output trigger
+        speak_text(full_text)
+        
         if "```mermaid" in full_text:
             mermaid_code = full_text.split("```mermaid")[1].split("```")[0]
             render_mermaid(mermaid_code)
-        
-        # Keep image logic same for /image
-        elif "/image" in prompt.lower():
-            clean_prompt = full_text.replace(" ", "%20").replace("\n", "")
-            image_url = f"https://image.pollinations.ai/prompt/{clean_prompt}"
-            st.image(image_url, caption="Artistic View 🌸")
 
         st.session_state.messages.append({"role": "assistant", "content": full_text})
