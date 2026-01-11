@@ -2,80 +2,85 @@ import streamlit as st
 import google.generativeai as genai
 import streamlit.components.v1 as components
 from streamlit_mic_recorder import speech_to_text
-import time
 
 # --- API Configuration ---
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-2.5-flash')
 
-instruction = "Tumhara naam 'PinkiAI' hai. Tum ek school teacher assistant ho. Polite raho aur 🌸 use karo. Short answers do."
+instruction = """Tumhara naam 'PinkiAI' hai. Tum ek school teacher assistant ho. 
+Hamesha polite raho aur 🌸 use karo. 
+AGAR user 'diagram' shabd use kare, toh hamesha Mermaid.js code dena ```mermaid se shuru karke."""
 
-# --- Functions ---
+# --- Fixed Functions ---
 def render_mermaid(code):
+    # Markdown rendering for stability
+    st.markdown(f"```mermaid\n{code}\n```")
     html_code = f"""
     <div class="mermaid" style="background: white; padding: 10px; border-radius: 10px;">{code}</div>
     <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-        mermaid.initialize({{ startOnLoad: true }});
+        import mermaid from '[https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs](https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs)';
+        mermaid.initialize({{ startOnLoad: true, theme: 'forest' }});
     </script>
     """
-    components.html(html_code, height=400)
+    components.html(html_code, height=450, scrolling=True)
 
 def speak_text(text):
+    # Text clean up for JS
     clean_text = text.replace("🌸", "").replace("`", "").replace('"', "").replace("'", "").replace("\n", " ").strip()
-    unique_id = str(int(time.time()))
     js_code = f"""
     <script>
         window.speechSynthesis.cancel();
         var msg = new SpeechSynthesisUtterance("{clean_text}");
         msg.lang = 'hi-IN';
+        msg.rate = 1.0;
         window.speechSynthesis.speak(msg);
     </script>
     """
     components.html(js_code, height=0)
 
-# --- UI Setup ---
-st.set_page_config(page_title="PinkiAI Fixed", layout="centered")
-st.title("👩‍🏫 PinkiAI: Smart Assistant")
+# --- UI ---
+st.set_page_config(page_title="PinkiAI Pro", layout="centered")
+st.title("👩‍🏫 PinkiAI: Smart Voice Assistant")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
-if "last_processed" not in st.session_state:
-    st.session_state.last_processed = None
 
-# Display History
+# History Display
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# --- Input Section ---
+# --- Fixed Input Section ---
 st.write("---")
-v_input = speech_to_text(language='hi', start_prompt="Bolo 🎤", stop_prompt="Ruko 🔴", key='voice_input')
+# Mic button upar taaki chat box niche rahe
+col1, col2 = st.columns([1, 5])
+with col1:
+    v_input = speech_to_text(language='hi', start_prompt="🎤", stop_prompt="🔴", key='lp_mic')
+
 t_input = st.chat_input("Yahan likhiye Mam...")
 
-# Logic to prevent repeating old messages
-current_input = v_input if v_input else t_input
+# Logic handling
+user_query = v_input if v_input else t_input
 
-# SIRF tabhi process karo jab input naya ho aur purane wale se alag ho
-if current_input and current_input != st.session_state.last_processed:
-    st.session_state.last_processed = current_input # Lock laga diya
-    
-    st.session_state.messages.append({"role": "user", "content": current_input})
+if user_query:
+    # 1. User Message
+    st.session_state.messages.append({"role": "user", "content": user_query})
     with st.chat_message("user"):
-        st.markdown(current_input)
+        st.markdown(user_query)
 
+    # 2. Assistant Response
     with st.chat_message("assistant"):
-        response = model.generate_content(f"{instruction}\n\nUser: {current_input}")
-        full_text = response.text
-        st.markdown(full_text)
-        
-        speak_text(full_text)
-        
-        if "```mermaid" in full_text:
-            m_code = full_text.split("```mermaid")[1].split("```")[0]
-            render_mermaid(m_code)
+        with st.spinner("PinkiAI kaam kar rahi hai..."):
+            response = model.generate_content(f"{instruction}\n\nUser: {user_query}")
+            res_text = response.text
+            st.markdown(res_text)
             
-        st.session_state.messages.append({"role": "assistant", "content": full_text})
-    
-    # Refresh taaki logic reset ho jaye
-    st.rerun()
+            # Voice trigger
+            speak_text(res_text)
+            
+            # Diagram check (Har tarah se)
+            if "```mermaid" in res_text:
+                m_code = res_text.split("```mermaid")[1].split("```")[0].strip()
+                render_mermaid(m_code)
+            
+            st.session_state.messages.append({"role": "assistant", "content": res_text})
